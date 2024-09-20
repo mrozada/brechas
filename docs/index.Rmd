@@ -1,0 +1,767 @@
+---
+title: "BRECHAS DE INFLACION"
+author: "Martin Gonzalez-Rozada. <br> Director de la Maestría en Econometría del Departamento de Economía de la [Universidad Torcuato Di Tella](https://www.utdt.edu/)."
+date: "Agosto 2024"
+output: rmdformats::downcute
+---
+
+  
+```{=html}
+<style>
+  p {
+    font-size: 22px;
+    line-height: 28px;
+    width: 950px;
+  }
+
+  table {
+    font-size: 20px;
+    padding: 10px;
+}
+  
+  h1, h2, h3, h4, h5, h6, legend {
+    font-weight: 700;
+    color: #9F2042;
+}
+</style>
+
+<style>
+.html-widget {
+    margin: auto;
+}
+</style>
+```
+
+```{css, echo = FALSE, message=FALSE}
+    #content{
+        max-width:1200px;
+    }
+```
+  
+```{r setup, include=FALSE, echo=FALSE, message=FALSE, warning=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE,
+                      warnings = FALSE,
+                      message = FALSE,
+                      engine.path = "C:/Program Files/Stata17/StataMP-64.exe",
+                      root.dir = "C:/Users/mrozada/Dropbox/Personal Stuff"
+                      #root.dir = "C:/Users/fiona/Dropbox/MGR"
+)
+
+options(knitr.kable.NA = '')
+
+library("kableExtra")
+library("knitr")
+library("readxl")
+library("tidyverse")
+library("htmltools")
+library("plotly")
+library("viridis")
+library("sf")
+library("leaflet")
+library("ggh4x")
+library("rmapshaper")
+
+
+```
+
+
+
+```{r excel, message=FALSE, echo=FALSE, include=FALSE}
+
+# Importo los datos:
+
+## Importo fecha: yearactual=anio del informe, mesactual=mes del informe
+
+
+year_t <- as.numeric(read_excel("./IPCse.xlsx", 
+    sheet = "Cuadro1", range = "c4", col_names = FALSE))
+
+mes_t <- as.numeric(read_excel("./IPCse.xlsx", 
+    sheet = "Cuadro1", range = "k4", col_names = FALSE))
+
+mes_tm1 <- as.numeric(read_excel("./IPCse.xlsx", 
+    sheet = "Cuadro1", range = "j4", col_names = FALSE))
+
+if(mes_t - mes_tm1 == 1){
+  year_tm1 <- year_t
+} else if (mes_t - mes_tm1 == -11){
+  year_tm1 <- year_t-1
+} else {
+  year_tm1 <- "ERROR EN EL ANIO DEL MES PREVIO" 
+}
+
+year_tm12 <- year_t - 1
+
+meses <- read_excel(("./IPCse.xlsx"),
+    sheet = "Cuadro1", range = "r15:r26", 
+    col_names = FALSE)
+
+meses_anterior <- read_excel(("./IPCse.xlsx"),
+    sheet = "Cuadro1", range = "s15:s26", 
+    col_names = FALSE)
+
+mes_t_abrev <- paste0(str_to_title(substr(meses[mes_t,1],1,3),"."))
+text_mes_yoy <-  paste(mes_t_abrev,year_t,"/",mes_t_abrev,year_tm12)
+
+
+## Importo el cuadro 1 IPCse
+
+cuadro1 <- read_excel(("./IPCse.xlsx"),
+                      sheet = "Cuadro1", range = "E47:L74", 
+                      na = "NA")
+colnames1 <- colnames(cuadro1)
+colnames1[1] <- " "
+colnames(cuadro1) <- colnames1
+
+## Importo los datos de la figura 4: tasa interanual q1-q5
+figura4 <- read_excel(("./IPCse por quintiles.xlsx"), 
+                      sheet = "Para R", 
+                      range = "B4:C2000")
+
+
+# Importo datos cuadro 3 a
+
+## Importo los datos del cuadro3a: tasas q1 a q5
+cuadro3se <- read_excel(("./IPCse por quintiles.xlsx"), 
+                        sheet = "Para R", 
+                        range = "G4:J9")
+
+## Importo los datos del cuadro3b: tasas q1 a q5
+cuadro4 <- read_excel(("./IPC por quintiles.xlsx"), 
+                      sheet = "Para R", 
+                      range = "E5:H10")
+
+
+
+## Importo los datos del cuadro 4: diferencia incidencias q1-q5
+cuadro_dif_inc_q1q5 <- read_excel(("./IPCse por quintiles.xlsx"), 
+                                  sheet = "Para R", 
+                                  range = "N4:P17")
+
+
+## Importo los datos de la figura 5 : tasas q1 a q5 ultimo año 
+figuraq1aq5year <- read_excel(("./IPC por quintiles.xlsx"), 
+                              sheet = "Para R", 
+                              range = "K5:M70")
+
+
+```
+
+
+```{r datos_figuras, message=FALSE, echo=FALSE, include=FALSE, warning=FALSE}
+
+# Figura 4: diferencia de inflacion interanual entre quintil 1 y quintil 5
+colnames(figura4) <- c("Fecha","Serie")
+figura4 <- figura4 %>%
+  na.omit() %>%
+  mutate(Serie=Serie*100) %>%
+  mutate_if(is.numeric, ~round(.,2))
+
+# Cuadro 3: Inflacion por quintil
+colnames(cuadro3se[,1]) <- " " 
+
+# Cuadro 3: Inflacion por quintil
+colnames(cuadro4[,1]) <- " " 
+
+
+fgqy <- figuraq1aq5year %>%
+  mutate_if(is.numeric, ~round(.,2)) 
+
+
+```
+
+```{r carga_shapefile, message=FALSE, echo=FALSE, warning=FALSE, include=FALSE}
+
+shapepath <- "./ProvinciasGBA/AR_RegionesGBA.shp"
+ar_regiones_gba <- st_read(shapepath)
+ar_regiones_gba <- ms_simplify(ar_regiones_gba, keep = 0.05)
+
+```
+
+```{r geo_ineq_data, message=FALSE, echo=FALSE, warning=FALSE}
+
+infineqpath <- ("./Data inflation inequality - links funcionan.xlsx")
+
+# Datos de desigualdad por ingresos
+
+dataf9 <-  read_excel(infineqpath, sheet = "Para R", range = "B5:D4000")
+
+dataf4 <-  read_excel(infineqpath, sheet = "Para R", range = "F5:H4000")
+
+dataf5 <-  read_excel(infineqpath, sheet = "Para R", range = "J5:L4000")
+
+# Datos de desigualdad geografica 
+
+dataf10f12 <- read_excel(infineqpath, sheet = "Para R", range = "Q5:S11")
+
+dataf17 <- read_excel(infineqpath, sheet = "Para R", range = "U5:Y4000")
+
+dataf19 <- read_excel(infineqpath, sheet = "Para R", range = "AA5:AF11")
+
+# Cuadro simil cuadro 1 pero para deciles
+
+cuadro1deciles <- read_excel(infineqpath, sheet = "Para R", range = "AI5:AL17")
+colnames1 <- colnames(cuadro1deciles)
+colnames1[1] <- " "
+colnames(cuadro1deciles) <- colnames1
+
+```
+
+Este informe reporta las brechas de inflación entre los hogares de menores y mayores ingresos junto con la brecha en la inflación por regiones geográficas. 
+
+Es claro que controlar la inflación beneficia a todos los consumidores aunque, generalmente, existen diferencias entre la inflación que enfrentan los hogares de menores ingresos, que gastan la mayor parte de los mismos en alimentos y bebidas, y la que enfrentan los hogares de mayores ingresos que pueden diversificar su consumo. Esta heterogeneidad en las canastas de consumo es importante para la política económica, en particular la política monetaria. Los hogares de mayores ingresos, que tienen menores propensiones marginales a consumir, gastan más en sectores con mayores rigideces de precios. Debido a este hecho, la eficacia de la política monetaria se reduce en equilibrio general. 
+
+Por otro lado, la brecha de inflación por regiones geográficas, si es sistemática, afecta la valorización de la canasta básica con la que se mide la pobreza y la indigencia. En ese sentido, incluso una pequeña diferencia en la inflación regional puede tener efectos marginales en el bienestar bastante grandes porque pueden empujar un hogar por encima o por debajo de los umbrales de pobreza. Es importante, entonces, cuantificar las disparidades inflacionarias por regiones porque puede ayudar en la implementación de políticas de asistencia social focalizada.
+
+# Inflación para hogares de mayores y menores ingresos
+
+La Figura 1 muestra la diferencia entre la inflación anual experimentada por el 20 por ciento de la población de menores ingresos y el 20 por ciento de mayores ingresos (medido por el ingreso familiar per capita del hogar). Durante el mes de `r meses[mes_t,1]`, el comportamiento de las tasas de inflación interanuales experimentadas por los hogares de mayores y menores ingresos mantuvo el mismo signo que en los últimos cuatro meses, y con una profundización de la diferencia. **Durante `r meses[mes_t,1]`, la brecha se ubicó en 4.9 puntos porcentuales en favor de los hogares de menores ingresos.** Este comportamiento se explica por los valores aún elevados de las tasas de inflación interanuales de las divisiones en las que los hogares de mayores ingresos consumen más, como Transporte, Salud, Restaurantes y hoteles y Equipamiento y mantenimiento del hogar, junto con las grandes reducciones en la tasa de inflación interanual en las divisiones en las que hogares de menores ingresos consumen más, como Alimentos y bebidas no alcohólicas.
+
+
+[**Figura 1. Diferencia entre la tasa de inflación interanual entre el 20% con menores ingresos y el 20% con mayores ingresos**]{style="color:#777;font-size:13    .0pt;"}
+
+```{r figura3_infla_intearnual_q1q5, echo=FALSE, message=FALSE, warning=FALSE}
+   
+  # editar el tooltip 
+  
+  tooltip_g4 <- paste0("La diferencia entre la tasa de inflación interanual entre el 20% con menores ingresos y el 20% con mayores ingresos es de ")
+  
+  
+  titulog4 <- paste0("Última observación: ", meses[mes_t,1], " ", year_t, ".\nLa diferencia en la inflación anual entre los quintiles 1 y 5 fue de ", sprintf("%.1f",cuadro3se[1,4]-cuadro3se[5,4]), " puntos porcentuales.")
+  
+  #figura4$Serie[which.max(figura4$Fecha)])
+  
+  g4 <- ggplot(data=figura4, aes(x=Fecha,y=Serie)) +
+    ggh4x::stat_difference(aes(ymin = 0, ymax = Serie)) +
+    geom_line(aes(y = Serie)) +
+    labs(fill = "Diferencia", y="Puntos porcentuales", x=" ", title=titulog4) +
+    scale_fill_manual(values=c("#9F2042", "#adcc78"), name="Diferencia") +
+    theme_bw()
+  g4
+  # ggplotly(g4)
+```
+
+<br>
+
+La Figura 2 muestra las diferencias entre las contribuciones a la tasa de inflación interanual de `r meses[mes_t,1]` del 20 por ciento de los hogares de menores y mayores ingresos. **La división de Alimentos y bebidas no alcohólicas contribuyó a incrementar más la inflación para los hogares de menores ingresos en comparación con los hogares de mayores ingresos.** En particular, esta división explicó más de 45 puntos porcentuales de la diferencia. En comparación, Transporte, Salud, y Restaurantes y hoteles fueron las divisiones que contribuyeron para aumentar más la tasa de inflación que enfrentó el grupo de hogares de mayores ingresos en comparación con los hogares de menores ingresos. Estas tres divisiones contribuyeron a reducir la brecha en la inflación enfrentada por los hogares de menores y mayores ingresos en alrededor de 35 puntos porcentuales. 
+
+<br>
+
+[**Figura 2. Diferencia de la incidencia de cada división entre el 20% con menores ingreso y el 20% con mayores ingresos**]{style="color:#777;font-size:13    .0pt;"}
+
+
+```{r figura4_infla_q1q5_difinci , echo=FALSE, warning=FALSE}
+  
+  fg4 <- cuadro_dif_inc_q1q5 %>%
+    mutate(Incidencia=fct_reorder(División,Orden)) %>%
+    mutate_if(is.numeric, ~round(.,2)) 
+  
+  g5 <- ggplot(fg4, aes(x=Incidencia, y=`Diferencia de incidencias`)) +
+    geom_bar(stat="identity", width = 0.5,fill=c("#88b3f7")) +
+    labs(y = "Variación porcentual",
+         x = "") +
+    theme_bw() +
+    coord_flip() 
+  ggplotly(g5)
+  # g5
+  
+  
+```
+
+<br>
+
+
+El Cuadro 1 muestra el impacto diferencial de la inflación por quintiles de ingreso per cápita familiar. **Los hogares de menores ingresos, quintil 1, enfrentaron en `r meses[mes_t,1]` una inflación de `r sprintf("%.2f",cuadro4[1,3])` por ciento comparada con una inflación de `r sprintf("%.2f",cuadro4[5,3])` por ciento para los hogares del 20 por ciento de mayores ingresos** (ver Figura 3). Esta diferencia se debe al aumento de los precios de las divisiones de Restaurantes y hoteles, Transporte y Salud  que impactan en mayor medida en los hogares de mayores ingresos (quintil 5), que no llegan a ser contrarrestados por los aumentos relativos de los precios de las divisiones de Alimentos y bebidas no alcohólicas y Prendas de vestir y calzado, que impactan más en los hogares de menores ingresos (quintil 5).
+
+<br>
+
+[**Cuadro 1. Inflación por quintil de ingresos**]{style="color:#777;font-size:13    .0pt;"}
+
+```{r cuadro4_indec, echo=FALSE, warning=FALSE}
+
+cuadro4 %>%   
+  kable(digits=2, col.names = NULL,align = c("r","c","c","c")) %>%
+  add_header_above(c(".", "Quintil", "Mensual", "Interanual")) %>%
+  kable_styling() 
+
+```
+
+------------------------------------------------------------------------
+
+<br>
+
+[**Figura 3. Tasa de inflación mensual para cada quintil de ingresos**]{style="color:#777;font-size:13    .0pt;"}
+
+```{r lineplot_quintiles, message=FALSE,echo=FALSE,warning=FALSE}
+
+  g5 <- ggplot(data=fgqy, aes(x=Fecha, y=Mensual)) +
+    geom_line(
+      aes(
+        x=Fecha,
+        color=Quintil
+    ), linewidth=.8) +
+    scale_color_manual(values=c("#581f4d","#77325f","#923d5b","#c3415b","#dd6868"))+
+    theme_bw() +
+    labs(y="Tasa de inflación mensual", x=" ")
+  ggplotly(g5)
+  # g5
+  
+```
+
+
+<br>
+
+La brecha de inflación entre hogares de menores y mayores ingresos se puede construir utilizando los deciles de ingreso en lugar de los quintiles. El Cuadro 2 muestra el impacto diferencial de la inflación, mensual e interanual, por deciles de ingreso per cápita familiar. **Los hogares de muy bajos ingresos, decil 1, enfrentaron en `r meses[mes_t,1]` una inflación mensual de `r sprintf("%.2f",cuadro1deciles[1,3])` por ciento comparada con una inflación mensual de `r sprintf("%.2f",cuadro1deciles[10,3])` por ciento para los hogares del 10 por ciento de mayores ingresos**. En términos de la inflación interanual la situación es similar, en `r meses[mes_t,1]` los hogares de muy bajos ingresos enfrentaron una inflación `r sprintf("%.2f",cuadro1deciles[12,4])` puntos porcentuales más baja que los hogares de muy altos ingresos.
+
+
+[**Cuadro 2. Inflación por deciles de ingreso**]{style="color:#777;font-size:13    .0pt;"}
+
+```{r cuadro_deciles, echo=FALSE, warning=FALSE}
+
+cuadro1deciles %>%   
+  kable(digits=2, col.names = NULL,align = c("r","c","c","c")) %>%
+  add_header_above(c(".", "Decil", "Mensual", "Interanual")) %>%
+  kable_styling() 
+
+```
+
+<br>
+
+La figura 4 muestra la diferencia entre la tasa de inflación interanual, nivel general y núcleo, experimentada por los hogares del decil 1 (muy bajos ingresos) y por los hogares del decil 10 (muy altos ingresos) desde 2017 en adelante. Un valor positivo indica que los hogares de menores ingresos experimentaron una inflación interanual mayor que la enfrentada por los hogares de mayores ingresos. Como se puede observar en la figura  la brecha de inflación por deciles de ingreso tiene menor volatilidad para la inflación núcleo que para el nivel general. Observando el comportamiento de esta brecha para la inflación núcleo (excluye bienes y servicios cuyos precios están sujetos a regulación o tienen alto componente impositivo -combustibles para la vivienda, electricidad, agua y servicios sanitarios, sistemas de salud y servicios auxiliares, transporte público de pasajeros, funcionamiento y mantenimiento de vehículos, correo, teléfono, educación formal y cigarrillos y accesorios- y aquellos con comportamiento estacional -frutas, verduras, ropa exterior, transporte por turismo y alojamiento y excursiones-) se pueden identificar tres períodos temporales. Hasta fines del 2021 la brecha es positiva indicando que la inflación que enfrentaron los hogares de menores ingresos fue mayor a la que enfrentaron los hogares de mayores ingresos. A partir de 2022 la brecha se vuelve negativa hasta agosto de 2023 y regresa a valores positivos a partir de septiembre de 2023 hasta febrero de 2024. **A partir de marzo del corriente año la brecha de inflación entre el decil 1 (menores ingresos) y el decil 10 (mayores ingresos) es negativa alcanzando -4.92 puntos porcentuales en el mes de `r meses[mes_t,1]`** 
+
+En líneas generales y a pesar de la mayor volatilidad, la brecha de inflación por deciles de ingreso medida con el nivel general tiene una evolución similar salvo por el período que va desde febrero de 2022 hasta julio de 2023 cuando la brecha de inflación medida para la núcleo es negativa mientras que medida por el nivel general es positiva. **En junio y julio la brecha de inflación interanual entre el decil 1 y el decil 10 volvió a ser positiva llegando a 1.17 puntos porcentuales en julio para hacerce negativa con un valor de -1.53 puntos porcentuales en agosto.** Esto indica que los hogares de muy bajos ingresos enfrentaron una inflación menor a la que enfrentaron los hogares de muy altos ingresos en el mes de `r meses[mes_t,1]`.   
+
+[**Figura 4. Diferencia en las tasas de inflación _interanual_ experimentadas por el decil 1 y el decil 10**]{style="color:#777;font-size:13    .0pt;"}
+
+```{r national_ineq_headline_core_yoy, message=FALSE, echo=FALSE, warning=FALSE}
+
+ggdataf4 <- dataf4 %>% 
+  rename("Nivel General" = "NivelGeneral") %>% 
+  rename("Núcleo" = "Nucleo") %>% 
+  drop_na() %>% 
+  pivot_longer(
+    cols = c("Nivel General", "Núcleo"),
+    names_to = "Serie",
+    values_to = "Tasa"
+  ) %>% 
+  mutate(Tasa = round(Tasa*100,2)) %>% 
+  rename("Diferencia" = "Tasa") %>% 
+  dplyr::arrange(Serie, Fecha)
+
+
+f4 <- ggplot(data = ggdataf4, aes(Diferencia)) +
+  geom_line(aes(x = Fecha, y = Diferencia, color = Serie), linewidth = 0.8) +
+  geom_hline(yintercept = 0, linetype = "dotted", color = "lightgrey") +
+  scale_color_manual(values = c("#009E73", "#D55E00")) +
+  theme_bw() +
+  labs(
+    y = "Puntos porcentuales",
+    x = "Fecha",
+    title = "Brechas de inflación por ingresos",
+    subtitle = "Diferencia entre las tasas de inflación del decil 1 y del decil 10"
+  )
+
+# f4
+ggplotly(f4) %>% layout(yaxis = list(hoverformat = '.2f'))
+
+```
+
+<br>
+
+
+# Brecha de Inflación por Regiónes Geográficas 
+
+La Figura 5 muestra la tendencia de la brecha de inflación por deciles de ingreso comparada con la magnitud de la brecha de inflación por regiones geográficas. 
+
+La brecha de inflación geográfica se calculó como la diferencia entre la tasa de inflación interanual de la región del país con mayor inflación y la tasa de inflación de la región del país con menor inflación. La figura refleja la importancia relativa de la brecha de inflación por regiones del país. Por ahora no es importante identificar que regiones tuvieron la mayor y menor inflación sino mostrar el alcance de las diferencias entre las brechas de inflación por deciles de ingreso y por regiones geográficas. En promedio, la brecha de inflación por regiones geográficas fue de 1.09 puntos porcentuales más de 3 veces más grande que la brecha por deciles de ingreso de 0.31. De hecho esta diferencia se hace mucho más grande al final del período y no hay ningún momento desde 2017 en el que la brecha por deciles de ingreso sea mayor a la brecha de inflación por regiones geográficas.    
+
+[**Figura 5. Desigualdad geográfica y desigualdad de ingresos**]{style="color:#777;font-size:13    .0pt;"}
+
+
+```{r geo_and_income_inequality, message=FALSE, echo=FALSE, warning=FALSE}
+
+ggdataf9 <- dataf9 %>% 
+  rename("Regional" = "GeoInfIneq") %>% 
+  rename("Deciles de ingreso" = "IncInfIneq") %>% 
+  drop_na() %>% 
+  pivot_longer(
+    cols = c("Regional", "Deciles de ingreso"),
+    names_to = "Desigualdad",
+    values_to = "Tasa"
+  ) %>% 
+  mutate(Tasa = round(Tasa*100,2)) %>% 
+  rename("Diferencia" = "Tasa") %>% 
+  dplyr::arrange(Desigualdad, Fecha)
+
+f9 <- ggplot(data = ggdataf9, aes(Diferencia)) +
+  geom_line(aes(x = Fecha, y = Diferencia, color = Desigualdad), linewidth = 0.8) +
+  scale_color_manual(values = c("#009E73", "#D55E00")) +
+  theme_bw() +
+  labs(
+    y = "Puntos porcentuales",
+    x = "Fecha",
+    title = "Brechas de inflación",
+    subtitle = "Diferencia máxima en la tasa de inflación mensual entre regiones y entre deciles"
+  )
+
+# Convert to plotly and adjust hover format
+ggplotly(f9) %>% layout(yaxis = list(hoverformat = '.2f'))
+
+```
+
+En general, no hay nada especial o estructural en las canastas de consumo de los hogares de menores ingresos pero si hay fuertes razones para pensar que los factores estructurales (costos de transporte, regulaciones provinciales, etc.) desempeñan un papel clave a la hora de distinguir la inflación por regiones. Con esto en mente, el mapa muestra los valores de inflación acumulada en cada región del país desde diciembre de 2016. Colores más claros indican mayor inflación acumulada y colores más oscuros muestran mayor inflación acumulada. **Hasta `r meses[mes_t,1]`  de `r year_t`, la región que más inflación acumuló fue la región Cuyo con 7075.5 por ciento, mientras que la región que menos inflación acumuló fue la región Patagonia con 6797.1 por ciento.** La brecha de inflación entre estas dos regiones supera los 270 puntos porcentuales. En el mismo período de tiempo la inflación aumulada medida por el IPC nivel general fue de 6883.4 por ciento. 
+
+[**Figura 6. Nivel de precios acumulado desde diciembre de 2016 en cada región**]{style="color:#777;font-size:13    .0pt;"}
+
+```{r, message=FALSE, echo=FALSE, fig.dim = c(12, 12),warning=FALSE}
+# Para agrandar la letra de los maps 
+custom_css <- tags$style(HTML("
+  .leaflet-tooltip {
+    font-size: 16px !important;
+  }
+"))
+
+
+# Cargo data al mapa 
+ar_regiones_gba_data <- ar_regiones_gba %>% 
+   left_join(dataf10f12, by = "codregion")
+
+# Paleta de colores
+palette_f10 <- colorNumeric(palette = "viridis", domain = ar_regiones_gba$f10value)
+
+# Configuro el mapa 
+map_f10 <- leaflet(ar_regiones_gba_data) %>%
+  addTiles() %>%
+  addPolygons(color = ~palette_f10(f10value), weight = 1, opacity = 1, fillOpacity = 0.5,
+              highlightOptions = highlightOptions(color = "white", weight = 2, bringToFront = TRUE),
+              label =  ~lapply(paste("Región:", region, "<br>", "Valor:", sprintf("%.1f",f10value)), HTML)) %>%
+  setView(lng = -62.0, lat = -38.0, zoom = 4) %>%
+  addScaleBar(position = "bottomleft") %>%
+  addLegend(pal = palette_f10, values = ~f10value, position = "bottomright", title = "100 = Dic. 2016") 
+
+# Plotear el mapa dinamico
+htmltools::browsable(tagList(
+  custom_css,
+  map_f10
+))
+
+```
+
+Después de la pandemia de COVID-19 la dinámica de la inflación por regiones geográficas parece haber cambiado. El siguiente mapa muestra los valores de inflación acumulada en cada región del país desde febrero de 2021. Hasta `r meses[mes_t,1]`  de `r year_t`, la región que más inflación acumuló fue la región Gran Buenos Aires, mientras que la región que menos inflación acumuló fue la región Noreste. En el Gran Buenos Aires el nivel general de precios acumulado fue de 1690.9 por ciento mientras que en la región Noreste fue de 1590.0 por ciento (Figura 7).
+
+[**Figura 7. Nivel de precios acumulado desde febrero de 2021 en cada región**]{style="color:#777;font-size:13    .0pt;"}
+
+```{r, message=FALSE, echo=FALSE, fig.dim = c(12, 6.75),warning=FALSE}
+# Cargo data al mapa 
+ar_regiones_gba_data <- ar_regiones_gba %>% 
+   left_join(dataf10f12, by = "codregion")
+
+# Paleta de colores
+palette_f12 <- colorNumeric(palette = "viridis", domain = ar_regiones_gba$f12value)
+
+# Configuro el mapa 
+map_f12 <- leaflet(ar_regiones_gba_data) %>%
+  addTiles() %>%
+  addPolygons(color = ~palette_f12(f12value), weight = 1, opacity = 1, fillOpacity = 0.5,
+              highlightOptions = highlightOptions(color = "white", weight = 2, bringToFront = TRUE),
+              label =  ~lapply(paste("Región:", region, "<br>", "Valor:", sprintf("%.1f",f12value)), HTML)) %>%
+  setView(lng = -62.0, lat = -37.0, zoom = 4) %>%
+  addScaleBar(position = "bottomleft") %>%
+  addLegend(pal = palette_f12, values = ~f12value, position = "bottomright", title = "100 = Feb. 2021") 
+
+# Plotear el mapa dinamico
+htmltools::browsable(tagList(
+  custom_css,
+  map_f12
+))
+```
+
+
+Tomando en cuenta la evolución de la inflación desde 2017, la brecha de inflación geográfica se definió como el cociente entre los índices de precios para las regiones Cuyo (menor inflación acumulada) y Patagonia (mayor inflación acumulada). La Figura 8 muestra la brecha de inflación geografica calculada de esta manera comparada con la brecha de inflación por deciles de ingreso calculada como el cociente del índice de precios para el decil más bajo (decil 1) contra el índice de precios del decil más alto (decil 10). El panel de la izquierda muestra la comparación utilizando el nivel general y el de la derecha usa la inflación núcleo. Como se observa en el panel de la izquierda, salvo en los primeros meses de 2017 la magnitud de la brecha geográfica es siempre mayor a la brecha de inflación acumulada por deciles de ingreso. En el mes de `r meses[mes_t,1]` la brecha de inflación geográfica es 3 puntos porcentuales más grande que la brecha por deciles de ingreso. El panel de la derecha muestra un panorama similar para estas brechas calculadas para la inflación núcleo. Se observa una mayor volatilidad en la brecha por regiones geográficas comparada con la volatilidad calculada con el nivel general de la inflación pero al igual que con este caso la brech por deciles de ingreso es más baja que la regional. En `r meses[mes_t,1]` la brecha de inflación por regiones geográficas es alrededor de 5 puntos porcentuales más grande que la brecha por deciles de ingreso. 
+
+
+```{r f17, message=FALSE, echo=FALSE, fig.dim = c(12, 6.75), warning=FALSE}
+
+ggdataf17ng <- dataf17 %>% 
+  select(Fecha, GeoInfIneqNG, IncInfIneqNG) %>% 
+  drop_na() %>% 
+  rename("Regiones (NG)" = "GeoInfIneqNG") %>%
+  rename("Ingreso (NG)" = "IncInfIneqNG") %>% 
+  pivot_longer(
+    cols = c("Regiones (NG)", "Ingreso (NG)"),
+    names_to = "Desigualdad",
+    values_to = "Tasa"
+  ) %>% 
+  mutate(Tasa = round(Tasa*100,2)) %>% 
+  rename("Diferencia" = "Tasa") %>% 
+  dplyr::arrange(Desigualdad, Fecha)
+
+
+ggdataf17nuc <- dataf17 %>% 
+  select(Fecha, GeoInfIneqNUC, IncInfIneqNUC) %>% 
+  drop_na() %>% 
+  rename("Regiones (Núcleo)" = "GeoInfIneqNUC") %>%
+  rename("Ingreso (Núcleo)" = "IncInfIneqNUC") %>% 
+  pivot_longer(
+    cols = c("Regiones (Núcleo)", "Ingreso (Núcleo)"),
+    names_to = "Desigualdad",
+    values_to = "Tasa"
+  ) %>% 
+  mutate(Tasa = round(Tasa*100,2)) %>% 
+  rename("Diferencia" = "Tasa") %>% 
+  dplyr::arrange(Desigualdad, Fecha)
+
+f17ng <- ggplot(data = ggdataf17ng, aes(Diferencia)) +
+  geom_line(aes(x = Fecha, y = Diferencia, color = Desigualdad), linewidth = 0.8) +
+  geom_hline(yintercept = 100, linetype = "dotted", color = "lightgrey") +
+  scale_color_manual(values = c("#009E73", "#D55E00")) +
+  theme_bw() +
+  theme(legend.position = "none") +
+  labs(
+    y = "Puntos porcentuales",
+    x = "Fecha",
+    title = "Brechas de inflación por ingresos",
+    subtitle = "Diferencia entre las tasas de inflación interanuales del decil 1 y del decil 10"
+  ) +
+  ylim(min(c(ggdataf17ng$Diferencia, ggdataf17nuc$Diferencia)), 
+       max(c(ggdataf17ng$Diferencia, ggdataf17nuc$Diferencia)))
+
+#ggplotly(f17ng) %>% layout(yaxis = list(hoverformat = '.4f'))
+
+
+f17nuc <- ggplot(data = ggdataf17nuc, aes(Diferencia)) +
+  geom_line(aes(x = Fecha, y = Diferencia, color = Desigualdad), linewidth = 0.8) +
+  geom_hline(yintercept = 100, linetype = "dotted", color = "lightgrey") +
+  scale_color_manual(values = c("#006e50", "#9c4603")) +
+  theme_bw() +
+  theme(legend.position = "none") +
+  labs(
+    y = "Puntos porcentuales",
+    x = "Fecha",
+    title = "Brechas de inflación por ingresos",
+    subtitle = "Diferencia entre las tasas de inflación interanuales del decil 1 y del decil 10"
+  ) +
+  ylim(min(c(ggdataf17ng$Diferencia, ggdataf17nuc$Diferencia)), 
+       max(c(ggdataf17ng$Diferencia, ggdataf17nuc$Diferencia)))
+#ggplotly(f17nuc) %>% layout(yaxis = list(hoverformat = '.1f'))
+
+
+```
+
+
+
+[**Figura 8. Brechas de inflación acumuladas por tipo de índice**]{style="color:#777;font-size:13    .0pt;"}
+
+
+```{r f17subplots, message=FALSE, echo=FALSE, warning=FALSE}
+
+plotly_f17ng <- ggplotly(f17ng)
+plotly_f17nuc <- ggplotly(f17nuc)
+
+fig <- subplot(plotly_f17ng, plotly_f17nuc, nrows = 1, shareX = TRUE, shareY = TRUE, titleX = TRUE, titleY = TRUE) %>%
+  layout(title = 'Brechas de inflación acumuladas',
+         margin = list(l = 50, r = 50, b = 50, t = 50, pad = 10),
+         legend = list(x = 0.5, y = -0.2, orientation = 'h'), # Legend position
+         hovermode = "compare", # Better hover interaction
+         annotations = list(
+           list(x = 0.25, y = 1.06, text = "Nivel General", 
+                showarrow = FALSE, xref='paper', yref='paper', 
+                xanchor='center', yanchor='top', font=list(size=12)),
+           list(x = 0.75, y = 1.06, text = "Núcleo", 
+                showarrow = FALSE, xref='paper', yref='paper', 
+                xanchor='center', yanchor='top', font=list(size=12))
+         ))
+fig
+```
+
+
+<br>
+
+
+## Desigualdad intra-región
+
+La Figura 9 muestra la brecha de inflación interanual por deciles de ingreso desde 2016 en el panel de la izquierda y desde 2021 en el panel de la derecha para las diferentes regiones del país. Esto es el promedio de la diferencia entre la inflación interanual que enfrentaron los hogares del decil 1 (muy bajos ingresos) y la inflación interanual que enfrentaron los hogares del decil 10 (muy altos ingresos). Un valor positivo indica que la inflación interanual que enfrentaron los hogares de muy bajos ingresos fue mayor a la que enfrentaron los hogares de muy altos ingresos. Ambos paneles cuentan la misma historia, la brecha de inflación por deciles de ingreso es positiva tanto desde 2016 como desde 2021. Sin embargo, las regiones con mayor y menor brecha cambian. El panel de la izquierda muestra que la brecha de inflación por deciles de ingreso fue más alta en la región Noroeste alcanzando casi 1 punto porcentual y fue más baja en la región Noreste con una brecha de casi 0.4 puntos porcentuales. Si tomamos la brecha desde 2021, panel derecho de la figura, en un extremo se encuentra la región Patagonia con una brecha por deciles de 1.47 puntos porcentiales y en el otro la región Noreste donde la brecha fue solo de 0.14 puntos porcentuales.
+
+
+
+```{r f19data, message=FALSE, echo=FALSE, fig.dim = c(12, 6.75),warning=FALSE}
+
+# Trabajo los datos de cada mapa
+
+ggdataf19 <- dataf19 %>% 
+  mutate(f19yoyprom16=f19yoyprom16*100) %>%  
+  mutate(f19yoyprom21=f19yoyprom21*100) %>% 
+  mutate(f19acum16=f19acum16*100)       %>% 
+  mutate(f19acum21=f19acum21*100)       %>% 
+  mutate(d1d10yoyxregion=d1d10yoyxregion*100)
+
+# Cargo data al mapa 
+ar_regiones_gba_within <- ar_regiones_gba %>% 
+   left_join(ggdataf19, by = "codregion")
+
+# Paleta de colores
+palette_f19a <- colorNumeric(palette = "viridis", domain = ar_regiones_gba_within$f19yoyprom16)
+palette_f19b <- colorNumeric(palette = "viridis", domain = ar_regiones_gba_within$f19yoyprom21)
+palette_f19c <- colorNumeric(palette = "viridis", domain = ar_regiones_gba_within$f19acum16)
+palette_f19d <- colorNumeric(palette = "viridis", domain = ar_regiones_gba_within$f19acum21)
+palette_f19e <- colorNumeric(palette = "viridis", domain = ar_regiones_gba_within$d1d10yoyxregion)
+
+
+```
+
+
+[**Figura 9. Brecha _promedio_ de inflación interanual por región**]{style="color:#777;font-size:13    .0pt;"}
+
+```{r map19bc, message=FALSE, echo=FALSE, fig.dim = c(12, 6.75),warning=FALSE}
+map19a <- leaflet(ar_regiones_gba_within) %>%
+  addTiles() %>%
+  addPolygons(color = ~palette_f19a(f19yoyprom16), weight = 1, opacity = 1, fillOpacity = 0.5,
+              highlightOptions = highlightOptions(color = "white", weight = 2, bringToFront = TRUE),
+              label =  ~lapply(paste("Región:", region, "<br>", "Valor:", sprintf("%.3f",f19yoyprom16)), HTML)) %>%
+  setView(lng = -62.0, lat = -37.0, zoom = 4) %>%
+  addScaleBar(position = "bottomleft") %>%
+  addLegend(pal = palette_f19a, values = ~f19yoyprom16, position = "bottomright", title = "Dif. YoY")
+
+map19b <- leaflet(ar_regiones_gba_within) %>%
+  addTiles() %>%
+  addPolygons(color = ~palette_f19b(f19yoyprom21), weight = 1, opacity = 1, fillOpacity = 0.5,
+              highlightOptions = highlightOptions(color = "white", weight = 2, bringToFront = TRUE),
+              label =  ~lapply(paste("Región:", region, "<br>", "Valor:", sprintf("%.3f",f19yoyprom21)), HTML)) %>%
+  setView(lng = -62.0, lat = -37.0, zoom = 4) %>%
+  addScaleBar(position = "bottomleft") %>%
+  addLegend(pal = palette_f19b, values = ~f19yoyprom21, position = "bottomright", title = "Dif. YoY")
+
+browsable(
+  tagList(
+    tags$div(style = "display: inline-block; width: 49%;",
+             tags$h3("Desde diciembre de 2016"), # Title for the first map
+             map19a),
+    tags$div(style = "display: inline-block; width: 49%;",
+             tags$h3("Desde febrero de 2021"), # Title for the second map
+             map19b)
+  )
+)
+```
+
+
+<br>
+
+Si en lugar de trabajar con la inflación interanual consideramos la inflación acumulada desde 2016 o desde 2021 tenemos la misma historia. La Figura 10 muestra que la brecha promedio de inflación acumulada entre el decil 1 y el decil 10 fue positiva indicando que los hogares de muy bajos ingresos enfrentaron una inflación acumulada mayor que los hogares de muy altos ingresos, tanto desde 2016 como desde 2021. Igual que con la inflación interanual la mayor brecha entre el decil 1 y el decil 10 se dió en la región Noroeste si miramos desde 2016 y la región Patagonia si la miramos desde 2021.
+
+
+
+[**Figura 10. Brecha _acumulada_ de inflación acumulada por región**]{style="color:#777;font-size:13    .0pt;"}
+
+
+```{r map19cd, message=FALSE, echo=FALSE, fig.dim = c(12, 6.75),warning=FALSE}
+map19c <- leaflet(ar_regiones_gba_within) %>%
+  addTiles() %>%
+  addPolygons(color = ~palette_f19c(f19acum16), weight = 1, opacity = 1, fillOpacity = 0.5,
+              highlightOptions = highlightOptions(color = "white", weight = 2, bringToFront = TRUE),
+              label =  ~lapply(paste("Región:", region, "<br>", "Valor:", sprintf("%.3f",f19acum16)), HTML)) %>%
+  setView(lng = -62.0, lat = -37.0, zoom = 4) %>%
+  addScaleBar(position = "bottomleft") %>%
+  addLegend(pal = palette_f19c, values = ~f19acum16, position = "bottomright", title = "Dif. Acum.")
+
+map19d <- leaflet(ar_regiones_gba_within) %>%
+  addTiles() %>%
+  addPolygons(color = ~palette_f19d(f19acum21), weight = 1, opacity = 1, fillOpacity = 0.5,
+              highlightOptions = highlightOptions(color = "white", weight = 2, bringToFront = TRUE),
+              label =  ~lapply(paste("Región:", region, "<br>", "Valor:", sprintf("%.3f",f19acum21)), HTML)) %>%
+  setView(lng = -62.0, lat = -37.0, zoom = 4) %>%
+  addScaleBar(position = "bottomleft") %>%
+  addLegend(pal = palette_f19d, values = ~f19acum21, position = "bottomright", title = "Dif. Acum.")
+
+browsable(
+  tagList(
+    tags$div(style = "display: inline-block; width: 49%;",
+             tags$h3("Desde diciembre de 2016"), # Title for the first map
+             map19a),
+    tags$div(style = "display: inline-block; width: 49%;",
+             tags$h3("Desde febrero de 2021"), # Title for the second map
+             map19b)
+  )
+)
+```
+
+
+<br>
+
+La Figura 11 muestra el impacto diferencial de la inflación interanual por deciles de ingreso per cápita familiar para las diferentes regiones del país en `r meses[mes_t,1]` de 2024. Como se observa la brecha de inflación por deciles de ingreso es heterogénea entre regiones. En la región Patagonia los hogares de muy bajos ingresos enfrentaron una inflación 4.1 puntos porcentuales más alta que los hogares de muy altos ingresos, en la región Noroeste enfrentaron una inflación interanual 7.5 puntos porcentuales más baja. En el total del país, estos hogares de bajos ingresos enfrentaron una inflación  `r sprintf("%.2f",cuadro1deciles[12,4])` puntos porcentuales más baja que los hogares de muy altos ingresos, como se reporta en el Cuadro 2.
+
+[**Figura 11. Brecha de inflación por región en el último mes**]{style="color:#777;font-size:13    .0pt;"}
+
+```{r, message=FALSE, echo=FALSE, fig.dim = c(12, 12),warning=FALSE}
+# Para agrandar la letra de los maps 
+custom_css <- tags$style(HTML("
+  .leaflet-tooltip {
+    font-size: 16px !important;
+  }
+"))
+
+# Configuro el mapa 
+map_f19e <-  leaflet(ar_regiones_gba_within) %>%
+  addTiles() %>%
+  addPolygons(color = ~palette_f19e(d1d10yoyxregion), weight = 1, opacity = 1, fillOpacity = 0.5,
+              highlightOptions = highlightOptions(color = "white", weight = 2, bringToFront = TRUE),
+              label =  ~lapply(paste("Región:", region, "<br>", "Valor:", sprintf("%.3f",d1d10yoyxregion)), HTML)) %>%
+  setView(lng = -62.0, lat = -37.0, zoom = 4) %>%
+  addScaleBar(position = "bottomleft") %>%
+  addLegend(pal = palette_f19e, values = ~d1d10yoyxregion, position = "bottomright", title = "Dif. YoY")
+
+# Plotear el mapa dinamico
+htmltools::browsable(tagList(
+  custom_css,
+  map_f19e
+))
+
+```
+
+# Nota técnica
+
+**¿Cómo se calcula la inflación por grupos de ingreso?**
+
+La inflación no afecta homogéneamente a todos los hogares del país. Intuitivamente, es lógico pensar que la canasta de consumo de un hogar de ingresos bajos sea diferente a la canasta de consumo de un hogar de ingresos altos, por lo que, si los precios de algunos bienes más consumidos por los hogares de bajos ingresos suben más que los precios de los bienes más consumidos por los hogares de ingresos altos, es esperable que la inflación afecte más a aquellos hogares de bajos ingresos.
+
+¿Cómo se puede trasladar esta idea al cómputo de un índice de precios? En primer lugar, hay que definir qué significa que un hogar sea de ingresos bajos o de ingresos altos. Para ello, se utiliza la distribución del ingreso per cápita del hogar junto con el concepto estadístico de cuantiles. Un cuantil es un valor que divide una distribución de datos en partes iguales, de forma que cada parte contiene un porcentaje dado de los datos. En este análisis, se utilizan los conceptos de quintiles y deciles. Los *quintiles* dividen los datos en cinco partes iguales y los *deciles* en diez partes. En particular, se considera hogares de ingresos bajos a aquellos hogares cuyo ingreso per cápita se encuentra en el primero de estos grupos. De la misma manera, se considera que un hogar es de ingresos altos si su ingreso per cápita está en el último de estos grupos. Si se considera al 20 por ciento con ingresos más bajos y más altos para definir los grupos, se está utilizando el concepto de *quintiles del ingreso*. Los quintiles del ingreso son cinco grupos de la distribución del ingreso per cápita del hogar, cada uno con un quinto de la población ordenada en función de su ingreso. Es decir, cada quintil posee al 20 por ciento de los hogares; por ejemplo, el *quintil 1* posee al 20% de los hogares que *menores* ingresos tienen, mientras que el *quintil 5* posee al 20 por ciento de los hogares que *mayores* ingresos tienen. También se puede hacer una definción análoga usando los *deciles de ingreso*. De forma análoga, los deciles de ingreso son diez grupos de la distribución del ingreso per cápita del hogar, cada uno con un décimo de la población ordenada en función de su ingreso. En este caso, cada decil posee al 10% de los hogares: el *decil 1* posee al *10 por ciento* con ingresos más bajos, mientras que el *decil 10* contiene al 10 por ciento de los hogares que mayores ingresos tienen. Luego, se deben computar las "canastas de consumo" que en promedio poseen los hogares de cada quintil. Esto es necesario para obtener la ponderación que se le otorgará a cada precio para cada decil. 
+
+Para todos estos cálculos se utilizaron los datos de la Encuesta Nacional de Gasto de los Hogares en su edición realizada entre octubre de 2017 hasta diciembre de 2018. Utilizando la base de datos de hogares, se calcularon los quintiles y deciles del ingreso per cápita del hogar. Teniendo identificado el quintil y decil al que pertenece cada hogar, se calculó, por quintil/decil y región del país, la suma de todos los gastos y la suma de los gastos por cada una de las divisiones de los bienes y servicios que componen la canasta del IPC. Luego se dividió el gasto total en cada división de la canasta por el gasto total. Como los ponderadores del IPC publicado por INDEC no están calculados con la ENGHO 17/18, los ponderadores no coinciden con los utilizados por INDEC. Por este motivo, se reescalaron los ponderadores obtenidos con la ENGHO 17/18 para que permitan replicar los valores del IPC de INDEC. Con estos ponderadores, se calcula el índice de precios para cada quintil y la tasa de inflación mensual e interanual para cada grupo. Con respecto a la inflación núbleo, los datos disponibles son los de inflación núcleo por región, por lo que para computar la inflación núcleo para cada decil, se ponderan estos índices considerando el peso de cada región en cada decil de ingreso.
+
+
+**¿Cómo se computan las brechas de inflación?**
+
+Siendo que distintos grupos de ingresos y distintas regiones experimentan diferentes tasas de inflación, es pertinente definir medidas que permitan cuantificar la evolución de la desigualdad en la inflación. A estos fines, se computan las métricas definidas por Hartley & Mejia (2024). Sea $\pi^i_t$ la tasa de inflación neta para el grupo $i$ en el período $t$. Siguiendo a los autores, la definición preferida de **brecha de inflación** entre los grupos $i$  y $j$ es la diferencia entre las tasas de inflación de los dos grupos:
+
+$$
+B^{i,j}_t = \pi^i_t - \pi^j_t.
+$$
+De igual modo, se puede definir la brecha de inflación como un ratio entre las tasas brutas de inflación entre los dos grupos:
+
+$$
+\tilde{B}^{i,j}_t = \frac{1+\pi^i_t}{1+\pi^j_t}.
+$$
+Las definiciones puede aplicarse tanto a tasas de inflación mensuales como a tasas de inflación interanuales. Las brechas de inflación pueden computarse utilizando tanto la inflación resultante de la variación del IPC Nivel General como la tasa de inflación núcleo. A fines de estructurar el análisis, el foco está en dos brechas: la brecha de inflación por ingresos y la brecha de inflación por regiones geográficas. La **brecha de inflación por ingresos** posee una comparación natural que es comparar la inflación experimentada por el grupo de menores ingresos con el grupo de mayores ingresos, por lo que las brechas de inflación por ingresos se definen, en el caso de quintiles, como 
+$$
+B^{Q1,Q5}_t = \pi^{Q1}_t - \pi^{Q5}_t,
+$$
+y en el caso de deciles, como
+$$
+B^{D1,D10}_t = \pi^{D1}_t - \pi^{D10}_t,
+$$
+y de forma análoga para $\tilde{B}^{i,j}_t$. De este modo, valores positivos de la brecha indican que la inflación es más alta para los hogares de menores ingresos y valores negativos indican que la inflación es más alta para los hogares de mayores ingresos.
+
+La **brecha de inflación por regiones geográficas** refiere a las diferentes tasas de inflación experimentadas en diferentes regiones. A diferencia de la división por ingresos, las regiones no poseen un orden natural. Para no establecer una región como base de la comparación, se proponen dos formas de analizar los datos. Por un lado, se presentan directamente los datos de inflación o de variación acumulada de precios. Esto permite ver directamente qué regiones experimentaron más o menos inflación. Por otro lado, a partir de esta comparación se puede definir la región que en un período temporal experimentó más inflación, y la región que en el mismo período temporal experimentó menos inflación. Denótense estas regiones respectivamente como $R_{max}$ y  $R_{min}$. Así, la brecha de inflación por regiones geográficas se escribe como 
+
+$$
+B^{R_{max},R_{min}}_t = \pi^{R_{max}}_t - \pi^{R_{min}}_t.
+$$
+
+y de forma análoga para $\tilde{B}^{i,j}_t$. Finalmente, también se define la **brecha de inflación intra-región.** Esta definición corresponde a la misma definición original de brecha de inflación por ingresos, pero computada condicional a una región, para, finalmente, comparar en qué región se experimenta más desigualdad en la inflación. Esta definición se computa tanto con la inflación interanual como con la inflación acumulada. 
+
+
+
+
+**Referencias:**
+
+- Hartley, Jonathan and Mejia, Jackson (2024). Inflation Inequality Across Time and Space in the United States. Disponible en SSRN: https://ssrn.com/abstract=4818750 or http://dx.doi.org/10.2139/ssrn.4818750
