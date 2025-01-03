@@ -1,7 +1,7 @@
 ---
 title: "BRECHAS DE INFLACION"
 author: "Martin Gonzalez-Rozada. <br> Director de la Maestría en Econometría del Departamento de Economía de la [Universidad Torcuato Di Tella](https://www.utdt.edu/)."
-date: "Diciembre 2024"
+date: "Noviembre 2024"
 output: rmdformats::downcute
 ---
 
@@ -213,7 +213,7 @@ Es claro que controlar la inflación beneficia a todos los consumidores aunque, 
 
 Por otro lado, la brecha de inflación por regiones geográficas, si es sistemática, afecta la valorización de la canasta básica con la que se mide la pobreza y la indigencia. En ese sentido, incluso una pequeña diferencia en la inflación regional puede tener efectos marginales en el bienestar bastante grandes porque pueden empujar un hogar por encima o por debajo de los umbrales de pobreza. Es importante, entonces, cuantificar las disparidades inflacionarias por regiones porque puede ayudar en la implementación de políticas de asistencia social focalizada.
 
-###Inflación para hogares de mayores y menores ingresos
+## Inflación para hogares de mayores y menores ingresos
 
 La Figura 1 muestra la diferencia entre la inflación anual experimentada por el 20 por ciento de la población de menores ingresos y el 20 por ciento de mayores ingresos (medido por el ingreso familiar per capita del hogar). Durante el mes de `r meses[mes_t,1]`, el comportamiento de las tasas de inflación interanuales experimentadas por los hogares de mayores y menores ingresos mantuvo el mismo signo que en los últimos cuatro meses, y con una profundización de la diferencia. **Durante `r meses[mes_t,1]`, la brecha se ubicó en -9.4 puntos porcentuales en favor de los hogares de menores ingresos.** Este comportamiento se explica por los valores aún elevados de las tasas de inflación interanuales de las divisiones en las que los hogares de mayores ingresos consumen más, como Transporte, Salud, Restaurantes y hoteles y Equipamiento y mantenimiento del hogar, combinado con un menor aumento en la tasa de inflación interanual de las divisiones en las que hogares de menores ingresos consumen más, como Alimentos y bebidas no alcohólicas y Prendas de vestir y calzado. 
 
@@ -327,7 +327,7 @@ cuadro1deciles %>%
 <br>
 
 
-# Brecha de Inflación por Regiónes Geográficas 
+## Brecha de Inflación por Regiónes Geográficas 
 
 La Figura 5 muestra la tendencia de la brecha de inflación por deciles de ingreso comparada con la magnitud de la brecha de inflación por regiones geográficas. 
 
@@ -536,7 +536,7 @@ fig
 <br>
 
 
-##Desigualdad intra-región
+## Desigualdad intra-región
 
 La Figura 9 muestra la brecha de inflación interanual por deciles de ingreso desde 2016 en el panel de la izquierda y desde 2021 en el panel de la derecha para las diferentes regiones del país. Esto es el promedio de la diferencia entre la inflación interanual que enfrentaron los hogares del decil 1 (muy bajos ingresos) y la inflación interanual que enfrentaron los hogares del decil 10 (muy altos ingresos). Un valor positivo indica que la inflación interanual que enfrentaron los hogares de muy bajos ingresos fue mayor a la que enfrentaron los hogares de muy altos ingresos. Ambos paneles cuentan casi la misma historia, la brecha de inflación por deciles de ingreso es mayormente positiva en la mayoría de las regiones tanto desde 2016 como desde 2021. El panel de la izquierda muestra que la brecha de inflación por deciles de ingreso fue más alta en la región Patagonia alcanzando 0.6  puntos porcentuales y fue más baja en la región Noreste con una brecha de 0.12 puntos porcentuales. Si tomamos la brecha desde 2021, panel derecho de la figura, en un extremo se encuentra la región Patagonia con una brecha por deciles de 1.35 puntos porcentuales y en el otro la región Noreste donde la brecha fue -0.27 puntos porcentuales, indicando que es la única región donde los hogares de muy bajos ingresos enfrentaron una inflación más baja que la que enfrentaron los hogares de muy altos ingresos.
 
