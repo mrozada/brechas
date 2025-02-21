@@ -1,7 +1,7 @@
 ---
 title: "BRECHAS DE INFLACION"
 author: "Martin Gonzalez-Rozada. <br> Director de la Maestría en Econometría del Departamento de Economía de la [Universidad Torcuato Di Tella](https://www.utdt.edu/)."
-date: "Diciembre 2024"
+date: "Enero 2025"
 output: rmdformats::downcute
 ---
 
