@@ -1,7 +1,7 @@
 ---
 title: "BRECHAS DE INFLACION"
 author: "Martin Gonzalez-Rozada. <br> Director de la Maestría en Econometría del Departamento de Economía de la [Universidad Torcuato Di Tella](https://www.utdt.edu/)."
-date: "Mayo 2025. <br> ***2025 - Año de la Primera Estrella***"
+date: "Julio 2025. <br> ***2025 - Año de la Primera Estrella***"
 output: rmdformats::downcute
 ---
 
@@ -44,7 +44,8 @@ knitr::opts_chunk$set(echo = TRUE,
                       warnings = FALSE,
                       message = FALSE,
                       engine.path = "C:/Program Files/Stata17/StataMP-64.exe",
-                      root.dir = "C:/Users/mrozada/Dropbox/Personal Stuff"
+                      #root.dir = "C:/Users/mrozada/Dropbox/Personal Stuff"
+                      root.dir = "C:/Users/iaral/Dropbox"
                       #root.dir = "C:/Users/fiona/Dropbox/MGR"
 )
 
