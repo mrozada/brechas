@@ -1,7 +1,7 @@
 ---
 title: "BRECHAS DE INFLACION"
 author: "Martin Gonzalez-Rozada. <br> Director de la Maestría en Econometría del Departamento de Economía de la [Universidad Torcuato Di Tella](https://www.utdt.edu/)."
-date: "Mayo 2026. <br> ***2025 - Año de la Primera Estrella*** <br> ***2026 - Del Barrio al Continente***"
+date: "Julio 2026. <br> ***2025 - Año de la Primera Estrella*** <br> ***2026 - Del Barrio al Continente***"
 output: rmdformats::downcute
 ---
 
